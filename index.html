@@ -1,0 +1,1053 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BrewLab — Shape What We Brew</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    /* ─── DESIGN TOKENS ─────────────────────────────────────────────── */
+    :root {
+      --cream:       #faf8f5;
+      --cream-dark:  #f2ede6;
+      --latte:       #e8ddd0;
+      --caramel:     #c9a96e;
+      --caramel-lt:  #e0c48a;
+      --espresso:    #3b2314;
+      --espresso-md: #5c3a1e;
+      --espresso-lt: #7a5230;
+      --white:       #ffffff;
+      --text-primary:#2a1a0e;
+      --text-muted:  #8a7060;
+      --border:      rgba(58,35,20,.10);
+      --shadow-sm:   0 2px 8px rgba(58,35,20,.07), 0 1px 3px rgba(58,35,20,.05);
+      --shadow-md:   0 8px 32px rgba(58,35,20,.10), 0 2px 8px rgba(58,35,20,.07);
+      --shadow-lg:   0 20px 60px rgba(58,35,20,.14), 0 6px 20px rgba(58,35,20,.09);
+      --radius:      20px;
+      --radius-sm:   12px;
+      --transition:  .35s cubic-bezier(.4,0,.2,1);
+    }
+
+    /* ─── RESET ─────────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 16px; scroll-behavior: smooth; }
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--cream);
+      color: var(--text-primary);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ─── ANIMATED MESH BACKGROUND ──────────────────────────────────── */
+    .mesh-bg {
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background:
+        radial-gradient(ellipse 80% 60% at 10% 20%, rgba(201,169,110,.18) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 80% at 90% 80%, rgba(232,221,208,.55) 0%, transparent 60%),
+        radial-gradient(ellipse 50% 50% at 50% 50%, rgba(250,248,245,1) 0%, transparent 100%),
+        var(--cream);
+      animation: meshShift 12s ease-in-out infinite alternate;
+    }
+    @keyframes meshShift {
+      0%   { background-position: 0% 0%, 100% 100%, 50% 50%; }
+      100% { background-position: 20% 10%, 80% 90%, 55% 45%; }
+    }
+
+    /* ─── PARTICLES ─────────────────────────────────────────────────── */
+    .particles { position: fixed; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
+    .particle {
+      position: absolute;
+      border-radius: 50%;
+      opacity: 0;
+      animation: floatUp var(--dur, 8s) var(--delay, 0s) infinite ease-in-out;
+    }
+    .particle.bean {
+      width: 10px; height: 14px;
+      border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+      background: var(--espresso-md);
+    }
+    .particle.steam {
+      width: 6px; height: 6px;
+      background: rgba(201,169,110,.35);
+      filter: blur(2px);
+    }
+    @keyframes floatUp {
+      0%   { transform: translateY(110vh) rotate(0deg) scale(.6); opacity: 0; }
+      10%  { opacity: .7; }
+      90%  { opacity: .4; }
+      100% { transform: translateY(-10vh) rotate(360deg) scale(1); opacity: 0; }
+    }
+
+    /* ─── LAYOUT ─────────────────────────────────────────────────────── */
+    .app {
+      position: relative; z-index: 2;
+      min-height: 100vh;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 24px 16px;
+    }
+
+    /* ─── PROGRESS BAR ───────────────────────────────────────────────── */
+    .progress-wrap {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      height: 4px; background: var(--latte);
+    }
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, var(--espresso-md), var(--caramel), var(--caramel-lt));
+      width: 0%;
+      transition: width .6s cubic-bezier(.4,0,.2,1);
+      border-radius: 0 4px 4px 0;
+      box-shadow: 0 0 12px rgba(201,169,110,.6);
+    }
+
+    /* ─── CARD ───────────────────────────────────────────────────────── */
+    .card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-lg);
+      width: 100%; max-width: 620px;
+      padding: 48px 52px;
+      position: relative;
+      overflow: hidden;
+    }
+    .card::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; height: 3px;
+      background: linear-gradient(90deg, var(--espresso-md), var(--caramel), var(--caramel-lt));
+    }
+
+    /* ─── LANDING ────────────────────────────────────────────────────── */
+    .landing { text-align: center; }
+    .brand-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--cream-dark); border: 1px solid var(--border);
+      border-radius: 100px; padding: 6px 16px;
+      font-size: .78rem; font-weight: 600; letter-spacing: .08em;
+      color: var(--espresso-md); text-transform: uppercase;
+      margin-bottom: 28px;
+    }
+    .brand-badge .dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--caramel);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%,100%{transform:scale(1);opacity:1} 50%{transform:scale(1.4);opacity:.7} }
+
+    .landing h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(1.9rem, 5vw, 2.8rem);
+      font-weight: 700; line-height: 1.2;
+      color: var(--text-primary); margin-bottom: 16px;
+    }
+    .landing h1 em { font-style: italic; color: var(--espresso-md); }
+    .landing .sub {
+      font-size: 1.05rem; color: var(--text-muted); line-height: 1.6;
+      margin-bottom: 10px;
+    }
+    .time-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: .85rem; color: var(--text-muted); margin-bottom: 36px;
+    }
+    .time-badge svg { width: 14px; height: 14px; }
+
+    /* ─── COFFEE CUP SVG ─────────────────────────────────────────────── */
+    .cup-wrap {
+      margin: 0 auto 32px;
+      width: 100px; height: 110px;
+      position: relative;
+    }
+    .cup-svg { width: 100%; height: 100%; }
+    .steam-line {
+      stroke-dasharray: 20;
+      stroke-dashoffset: 20;
+      animation: steamAnim 2s ease-in-out infinite;
+    }
+    .steam-line:nth-child(2) { animation-delay: .4s; }
+    .steam-line:nth-child(3) { animation-delay: .8s; }
+    @keyframes steamAnim {
+      0%   { stroke-dashoffset: 20; opacity: 0; }
+      30%  { opacity: 1; }
+      100% { stroke-dashoffset: -20; opacity: 0; }
+    }
+
+    /* ─── BUTTONS ────────────────────────────────────────────────────── */
+    .btn-primary {
+      display: inline-flex; align-items: center; gap: 10px;
+      background: linear-gradient(135deg, var(--espresso-md), var(--espresso));
+      color: var(--white); border: none; border-radius: var(--radius-sm);
+      padding: 16px 36px; font-family: 'DM Sans', sans-serif;
+      font-size: 1rem; font-weight: 600; cursor: pointer;
+      transition: var(--transition);
+      box-shadow: 0 4px 20px rgba(58,35,20,.25);
+      position: relative; overflow: hidden;
+    }
+    .btn-primary::after {
+      content: '';
+      position: absolute; inset: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,.15), transparent);
+      opacity: 0; transition: var(--transition);
+    }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(58,35,20,.35); }
+    .btn-primary:hover::after { opacity: 1; }
+    .btn-primary:active { transform: translateY(0); }
+
+    .btn-secondary {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: transparent; color: var(--text-muted);
+      border: 1px solid var(--border); border-radius: var(--radius-sm);
+      padding: 12px 24px; font-family: 'DM Sans', sans-serif;
+      font-size: .9rem; font-weight: 500; cursor: pointer;
+      transition: var(--transition);
+    }
+    .btn-secondary:hover { background: var(--cream-dark); color: var(--text-primary); transform: translateY(-1px); }
+
+    /* ─── QUESTION SCREEN ────────────────────────────────────────────── */
+    .q-screen { display: none; }
+    .q-screen.active { display: block; }
+
+    .q-meta {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 28px;
+    }
+    .q-counter {
+      font-size: .8rem; font-weight: 600; letter-spacing: .06em;
+      text-transform: uppercase; color: var(--text-muted);
+    }
+    .q-counter span { color: var(--espresso-md); }
+
+    .q-title {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(1.2rem, 3vw, 1.55rem);
+      font-weight: 600; line-height: 1.35;
+      color: var(--text-primary); margin-bottom: 28px;
+    }
+    .q-hint {
+      font-size: .82rem; color: var(--text-muted);
+      margin-top: -20px; margin-bottom: 24px;
+    }
+
+    /* ─── OPTIONS ────────────────────────────────────────────────────── */
+    .options { display: flex; flex-direction: column; gap: 10px; margin-bottom: 32px; }
+    .option {
+      display: flex; align-items: center; gap: 14px;
+      background: var(--cream); border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm); padding: 14px 18px;
+      cursor: pointer; transition: var(--transition);
+      position: relative; overflow: hidden; user-select: none;
+    }
+    .option::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: linear-gradient(135deg, rgba(201,169,110,.12), rgba(92,58,30,.06));
+      opacity: 0; transition: var(--transition);
+    }
+    .option:hover { border-color: var(--caramel); transform: translateX(4px); box-shadow: var(--shadow-sm); }
+    .option:hover::before { opacity: 1; }
+
+    .option.selected {
+      border-color: var(--espresso-md);
+      background: linear-gradient(135deg, rgba(201,169,110,.15), rgba(92,58,30,.08));
+      box-shadow: var(--shadow-sm);
+    }
+    .option.selected::before { opacity: 1; }
+
+    .option-radio {
+      width: 20px; height: 20px; flex-shrink: 0;
+      border: 2px solid var(--latte); border-radius: 50%;
+      transition: var(--transition); position: relative;
+    }
+    .option.selected .option-radio {
+      border-color: var(--espresso-md);
+      background: var(--espresso-md);
+    }
+    .option.selected .option-radio::after {
+      content: '';
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%,-50%) scale(0);
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--white);
+      animation: checkPop .25s forwards;
+    }
+    @keyframes checkPop { to { transform: translate(-50%,-50%) scale(1); } }
+
+    .option-check {
+      width: 20px; height: 20px; flex-shrink: 0;
+      border: 2px solid var(--latte); border-radius: 6px;
+      transition: var(--transition); position: relative;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .option.selected .option-check {
+      border-color: var(--espresso-md);
+      background: var(--espresso-md);
+    }
+    .option.selected .option-check::after {
+      content: '';
+      width: 5px; height: 9px;
+      border-right: 2px solid var(--white); border-bottom: 2px solid var(--white);
+      transform: rotate(45deg) scale(0);
+      animation: checkMark .2s .05s forwards;
+    }
+    @keyframes checkMark { to { transform: rotate(45deg) scale(1); } }
+
+    .option-label { font-size: .95rem; font-weight: 500; color: var(--text-primary); position: relative; z-index: 1; }
+    .option.selected .option-label { color: var(--espresso); font-weight: 600; }
+
+    /* ─── TEXT INPUT ─────────────────────────────────────────────────── */
+    .text-input {
+      width: 100%; background: var(--cream);
+      border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+      padding: 18px 20px; font-family: 'DM Sans', sans-serif;
+      font-size: 1.1rem; color: var(--text-primary);
+      transition: var(--transition); outline: none; margin-bottom: 32px;
+    }
+    .text-input:focus { border-color: var(--caramel); box-shadow: 0 0 0 3px rgba(201,169,110,.18); background: var(--white); }
+    .text-input::placeholder { color: var(--text-muted); }
+
+    textarea.text-input { resize: none; min-height: 120px; line-height: 1.6; }
+    .char-counter { text-align: right; font-size: .8rem; color: var(--text-muted); margin-top: -24px; margin-bottom: 32px; }
+    .char-counter.warn { color: #c0392b; }
+
+    /* ─── NAV BUTTONS ────────────────────────────────────────────────── */
+    .q-nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .q-nav .spacer { flex: 1; }
+
+    /* ─── SLIDE ANIMATIONS ───────────────────────────────────────────── */
+    .slide-in-right { animation: slideInRight .4s cubic-bezier(.4,0,.2,1) forwards; }
+    .slide-out-left  { animation: slideOutLeft  .35s cubic-bezier(.4,0,.2,1) forwards; }
+    .slide-in-left   { animation: slideInLeft   .4s cubic-bezier(.4,0,.2,1) forwards; }
+    .slide-out-right { animation: slideOutRight .35s cubic-bezier(.4,0,.2,1) forwards; }
+
+    @keyframes slideInRight  { from{transform:translateX(60px);opacity:0} to{transform:translateX(0);opacity:1} }
+    @keyframes slideOutLeft  { from{transform:translateX(0);opacity:1}   to{transform:translateX(-60px);opacity:0} }
+    @keyframes slideInLeft   { from{transform:translateX(-60px);opacity:0} to{transform:translateX(0);opacity:1} }
+    @keyframes slideOutRight { from{transform:translateX(0);opacity:1}   to{transform:translateX(60px);opacity:0} }
+
+    /* ─── THANK YOU ──────────────────────────────────────────────────── */
+    #screen-thanks { text-align: center; }
+    .check-wrap {
+      width: 80px; height: 80px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--espresso-md), var(--caramel));
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 28px;
+      animation: scaleIn .5s cubic-bezier(.175,.885,.32,1.275) forwards;
+    }
+    @keyframes scaleIn { from{transform:scale(0)} to{transform:scale(1)} }
+    .check-wrap svg { width: 36px; height: 36px; }
+    .check-wrap svg path { stroke-dasharray: 60; stroke-dashoffset: 60; animation: drawCheck .5s .3s ease forwards; }
+    @keyframes drawCheck { to { stroke-dashoffset: 0; } }
+
+    #screen-thanks h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(1.6rem, 4vw, 2.2rem);
+      font-weight: 700; margin-bottom: 14px;
+    }
+    #screen-thanks p { font-size: 1.05rem; color: var(--text-muted); line-height: 1.6; }
+
+    /* ─── ALREADY SUBMITTED ──────────────────────────────────────────── */
+    #screen-already { text-align: center; }
+    #screen-already h2 { font-family: 'Playfair Display', serif; font-size: 1.8rem; margin-bottom: 12px; }
+    #screen-already p { color: var(--text-muted); }
+
+    /* ─── TOAST ──────────────────────────────────────────────────────── */
+    .toast {
+      position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(100px);
+      background: #3b2314; color: #fff; border-radius: var(--radius-sm);
+      padding: 14px 24px; font-size: .9rem; font-weight: 500;
+      box-shadow: var(--shadow-lg); z-index: 9999;
+      transition: transform .4s cubic-bezier(.4,0,.2,1);
+      max-width: 90vw; text-align: center;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+    .toast.error { background: #8b2020; }
+
+    /* ─── CONFETTI ───────────────────────────────────────────────────── */
+    #confetti-canvas {
+      position: fixed; inset: 0; z-index: 9998; pointer-events: none;
+    }
+
+    /* ─── RESPONSIVE ─────────────────────────────────────────────────── */
+    @media (max-width: 680px) {
+      .card { padding: 32px 24px; border-radius: 16px; }
+      .q-nav { flex-wrap: wrap; }
+    }
+    @media (max-width: 380px) {
+      .card { padding: 28px 18px; }
+      .landing h1 { font-size: 1.6rem; }
+    }
+
+    /* ─── HIDDEN ─────────────────────────────────────────────────────── */
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+<!-- Mesh background -->
+<div class="mesh-bg"></div>
+
+<!-- Floating particles -->
+<div class="particles" id="particles"></div>
+
+<!-- Progress bar -->
+<div class="progress-wrap"><div class="progress-bar" id="progressBar"></div></div>
+
+<!-- Confetti canvas -->
+<canvas id="confetti-canvas"></canvas>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<div class="app">
+  <div class="card" id="mainCard">
+
+    <!-- ── LANDING ─────────────────────────────────────────────────── -->
+    <div id="screen-landing" class="landing">
+      <div class="brand-badge"><span class="dot"></span> BrewLab Survey</div>
+
+      <div class="cup-wrap">
+        <svg class="cup-svg" viewBox="0 0 100 110" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- Steam -->
+          <path class="steam-line" d="M38 28 Q34 20 38 12" stroke="#c9a96e" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+          <path class="steam-line" d="M50 24 Q46 16 50 8"  stroke="#c9a96e" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+          <path class="steam-line" d="M62 28 Q58 20 62 12" stroke="#c9a96e" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+          <!-- Cup body -->
+          <path d="M18 38 L26 90 Q26 94 30 94 L70 94 Q74 94 74 90 L82 38 Z" fill="#5c3a1e"/>
+          <!-- Rim -->
+          <rect x="14" y="34" width="72" height="8" rx="4" fill="#3b2314"/>
+          <!-- Handle -->
+          <path d="M74 52 Q92 52 92 66 Q92 80 74 80" stroke="#3b2314" stroke-width="5" fill="none" stroke-linecap="round"/>
+          <!-- Liquid -->
+          <path d="M22 46 L26 90 Q26 94 30 94 L70 94 Q74 94 74 90 L78 46 Z" fill="#c9a96e" opacity=".35"/>
+          <!-- Logo text -->
+          <text x="50" y="72" text-anchor="middle" font-family="serif" font-size="11" font-weight="bold" fill="#faf8f5" opacity=".9">BL</text>
+        </svg>
+      </div>
+
+      <h1>Help us brew something<br/><em>you'll actually love.</em></h1>
+      <p class="sub">10 quick questions. Your opinion shapes what we build.</p>
+      <div class="time-badge">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        ~2 min
+      </div>
+      <br/>
+      <button class="btn-primary" id="startBtn">
+        Start Survey
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </button>
+    </div>
+
+    <!-- ── QUESTIONS ───────────────────────────────────────────────── -->
+
+    <!-- Q1: Name -->
+    <div id="q-1" class="q-screen">
+      <div class="q-meta">
+        <span class="q-counter">Question <span>1</span> of 10</span>
+      </div>
+      <p class="q-title">First, what's your name?</p>
+      <input type="text" class="text-input" id="ans-1" placeholder="Your name…" maxlength="80" autocomplete="given-name" aria-label="Your name" />
+      <div class="q-nav">
+        <button class="btn-secondary" onclick="goBack()">← Back</button>
+        <div class="spacer"></div>
+        <button class="btn-primary" onclick="goNext()">Next <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></button>
+      </div>
+    </div>
+
+    <!-- Q2: Frequency -->
+    <div id="q-2" class="q-screen">
+      <div class="q-meta">
+        <span class="q-counter">Question <span>2</span> of 10</span>
+      </div>
+      <p class="q-title">How often do you buy cold coffee or drinks on campus?</p>
+      <div class="options" data-q="2" data-type="single">
+        <div class="option" data-value="Every day" role="radio" tabindex="0">
+          <div class="option-radio"></div><span class="option-label">Every day</span>
+        </div>
+        <div class="option" data-value="3–4 times a week" role="radio" tabindex="0">
+          <div class="option-radio"></div><span class="option-label">3–4 times a week</span>
+        </div>
+        <div class="option" data-value="Once a week" role="radio" tabindex="0">
+          <div class="option-radio"></div><span class="option-label">Once a week</span>
+        </div>
+        <div class="option" data-value="Rarely / Never" role="radio" tabindex="0">
+          <div class="option-radio"></div><span class="option-label">Rarely / Never</span>
+        </div>
+      </div>
+      <div class="q-nav">
+        <button class="btn-secondary" onclick="goBack()">← Back</button>
+        <div class="spacer"></div>
+        <button class="btn-primary" onclick="goNext()">Next <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></button>
+      </div>
+    </div>
+
+    <!-- Q3: Protein coffee interest -->
+    <div id="q-3" class="q-screen">
+      <div class="q-meta">
+        <span class="q-counter">Question <span>3</span> of 10</span>
+      </div>
+      <p class="q-title">A thick, protein-rich cold coffee with real coffee taste — does that sound interesting?</p>
+      <div class="options" data-q="3" data-type="single">
+        <div class="option" data-value="Yes, I'd try it immediately" role="radio" tabindex="0">
+          <div class="option-radio"></div><span class="option-label">Yes, I'd try it immediately</span>
+        </div>
+        <div class="option" data-value="Sounds interesting, depends on the taste" role="radio" tabindex="0">
+          <div class="option-radio"></div><span class="option-label">Sounds interesting, depends on the taste</span>
+        </div>
+        <div class="option" data-value="Not really into protein drinks" role="radio" tabindex="0">
+          <div class="option-radio"></div><span class="option-label">Not really into protein drinks</span>
+        </div>
+        <div class="option" data-value="I don't drink coffee" role="radio" tabindex="0">
+          <div class="option-radio"></div><span class="option-label">I don't drink coffee</span>
+        </div>
+      </div>
+      <div class="q-nav">
+        <button class="btn-secondary" onclick="goBack()">← Back</button>
+        <div class="spacer"></div>
+        <button class="btn-primary" onclick="goNext()">Next <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></button>
+      </div>
+    </div>
+
+    <!-- Q4: What matters most (pick 2) -->
+    <div id="q-4" class="q-screen">
+      <div class="q-meta">
+        <span class="q-counter">Question <span>4</span> of 10</span>
+      </div>
+      <p class="q-title">What matters most to you in a cold coffee?</p>
+      <p class="q-hint">Pick exactly 2 — <strong id="q4-counter">0/2 selected</strong></p>
+      <div class="options" data-q="4" data-type="multi" data-max="2">
+        <div class="option" data-value="Taste & flavour" role="checkbox" tabindex="0">
+          <div class="option-check"></div><span class="option-label">Taste &amp; flavour</span>
+        </div>
+        <div class="option" data-value="Thickness / texture" role="checkbox" tabindex="0">
+          <div class="option-check"></div><span class="option-label">Thickness / texture</span>
+        </div>
+        <div class="option" data-value="Health & nutrition" role="checkbox" tabindex="0">
+          <div class="option-check"></div><span class="option-label">Health &amp; nutrition</span>
+        </div>
+        <div class="option" data-value="Aesthetic packaging" role="checkbox" tabindex="0">
+          <div class="option-check"></div><span class="option-label">Aesthetic packaging</span>
+        </div>
+        <div class="option" data-value="Affordable price" role="checkbox" tabindex="0">
+          <div class="option-check"></div><span class="option-label">Affordable price</span>
+        </div>
+        <div class="option" data-value="Energy boost" role="checkbox" tabindex="0">
+          <div class="option-check"></div><span class="option-label">Energy boost</span>
+        </div>
+      </div>
+      <div class="q-nav">
+        <button class="btn-secondary" onclick="goBack()">← Back</button>
+        <div class="spacer"></div>
+        <button class="btn-primary" onclick="goNext()">Next <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></button>
+      </div>
+    </div>
+
+    <!-- Q5: Issues (multi-select) -->
+    <div id="q-5" class="q-screen">
+      <div class="q-meta">
+        <span class="q-counter">Question <span>5</span> of 10</span>
+      </div>
+      <p class="q-title">What's your biggest issue with cold coffee on campus right now?</p>
+      <p class="q-hint">Pick all that apply</p>
+      <div class="options" data-q="5" data-type="multi">
+        <div class="option" data-value="Too watery / thin" role="checkbox" tabindex="0">
+          <div class="option-check"></div><span class="option-label">Too watery / thin</span>
+        </div>
+        <div class="option" data-value="Not healthy at all" role="checkbox" tabindex="0">
+          <div class="option-check"></div><span class="option-label">Not healthy at all</span>
+        </div>
+        <div class="option" data-value="Tastes artificial" role="checkbox" tabindex="0">
+          <div class="option-check"></div><span class="option-label">Tastes artificial</span>
+        </div>
+        <div class="option" data-value="Not premium enough" role="checkbox" tabindex="0">
+          <div class="option-check"></div><span class="option-label">Not premium enough</span>
+        </div>
+        <div class="option" data-value="No variety" role="checkbox" tabindex="0">
+          <div class="option-check"></div><span class="option-label">No variety</span>
+        </div>
+        <div class="option" data-value="Nothing, I'm happy with it" role="checkbox" tabindex="0">
+          <div class="option-check"></div><span class="option-label">Nothing, I'm happy with it</span>
+        </div>
+      </div>
+      <div class="q-nav">
+        <button class="btn-secondary" onclick="goBack()">← Back</button>
+        <div class="spacer"></div>
+        <button class="btn-primary" onclick="goNext()">Next <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></button>
+      </div>
+    </div>
+
+    <!-- Q6: When -->
+    <div id="q-6" class="q-screen">
+      <div class="q-meta">
+        <span class="q-counter">Question <span>6</span> of 10</span>
+      </div>
+      <p class="q-title">When would you most likely grab a cold coffee?</p>
+      <div class="options" data-q="6" data-type="single">
+        <div class="option" data-value="Morning (8–11 AM)" role="radio" tabindex="0">
+          <div class="option-radio"></div><span class="option-label">Morning (8–11 AM)</span>
+        </div>
+        <div class="option" data-value="Afternoon (12–3 PM)" role="radio" tabindex="0">
+          <div class="option-radio"></div><span class="option-label">Afternoon (12–3 PM)</span>
+        </div>
+        <div class="option" data-value="Evening (5–8 PM)" role="radio" tabindex="0">
+          <div class="option-radio"></div><span class="option-label">Evening (5–8 PM)</span>
+        </div>
+        <div class="option" data-value="Anytime, honestly" role="radio" tabindex="0">
+          <div class="option-radio"></div><span class="option-label">Anytime, honestly</span>
+        </div>
+      </div>
+      <div class="q-nav">
+        <button class="btn-secondary" onclick="goBack()">← Back</button>
+        <div class="spacer"></div>
+        <button class="btn-primary" onclick="goNext()">Next <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></button>
+      </div>
+    </div>
+
+    <!-- Q7: Price -->
+    <div id="q-7" class="q-screen">
+      <div class="q-meta">
+        <span class="q-counter">Question <span>7</span> of 10</span>
+      </div>
+      <p class="q-title">What's the max you'd spend on a really good cold coffee on campus?</p>
+      <div class="options" data-q="7" data-type="single">
+        <div class="option" data-value="₹50–80" role="radio" tabindex="0">
+          <div class="option-radio"></div><span class="option-label">₹50–80</span>
+        </div>
+        <div class="option" data-value="₹80–120" role="radio" tabindex="0">
+          <div class="option-radio"></div><span class="option-label">₹80–120</span>
+        </div>
+        <div class="option" data-value="₹120+ if it's worth it" role="radio" tabindex="0">
+          <div class="option-radio"></div><span class="option-label">₹120+ if it's worth it</span>
+        </div>
+      </div>
+      <div class="q-nav">
+        <button class="btn-secondary" onclick="goBack()">← Back</button>
+        <div class="spacer"></div>
+        <button class="btn-primary" onclick="goNext()">Next <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></button>
+      </div>
+    </div>
+
+    <!-- Q8: Fellow student -->
+    <div id="q-8" class="q-screen">
+      <div class="q-meta">
+        <span class="q-counter">Question <span>8</span> of 10</span>
+      </div>
+      <p class="q-title">If a fellow student made this drink, would you be more likely to try it?</p>
+      <div class="options" data-q="8" data-type="single">
+        <div class="option" data-value="Yes, much more likely" role="radio" tabindex="0">
+          <div class="option-radio"></div><span class="option-label">Yes, much more likely</span>
+        </div>
+        <div class="option" data-value="Slightly more likely" role="radio" tabindex="0">
+          <div class="option-radio"></div><span class="option-label">Slightly more likely</span>
+        </div>
+        <div class="option" data-value="Doesn't matter to me" role="radio" tabindex="0">
+          <div class="option-radio"></div><span class="option-label">Doesn't matter to me</span>
+        </div>
+        <div class="option" data-value="Actually makes me less sure" role="radio" tabindex="0">
+          <div class="option-radio"></div><span class="option-label">Actually makes me less sure</span>
+        </div>
+      </div>
+      <div class="q-nav">
+        <button class="btn-secondary" onclick="goBack()">← Back</button>
+        <div class="spacer"></div>
+        <button class="btn-primary" onclick="goNext()">Next <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></button>
+      </div>
+    </div>
+
+    <!-- Q9: Flavour -->
+    <div id="q-9" class="q-screen">
+      <div class="q-meta">
+        <span class="q-counter">Question <span>9</span> of 10</span>
+      </div>
+      <p class="q-title">Which flavour sounds most appealing?</p>
+      <div class="options" data-q="9" data-type="single">
+        <div class="option" data-value="☕ Classic Mocha (chocolate + coffee)" role="radio" tabindex="0">
+          <div class="option-radio"></div><span class="option-label">☕ Classic Mocha (chocolate + coffee)</span>
+        </div>
+        <div class="option" data-value="🥜 Peanut Butter Coffee" role="radio" tabindex="0">
+          <div class="option-radio"></div><span class="option-label">🥜 Peanut Butter Coffee</span>
+        </div>
+        <div class="option" data-value="🍦 Vanilla Cold Coffee" role="radio" tabindex="0">
+          <div class="option-radio"></div><span class="option-label">🍦 Vanilla Cold Coffee</span>
+        </div>
+      </div>
+      <div class="q-nav">
+        <button class="btn-secondary" onclick="goBack()">← Back</button>
+        <div class="spacer"></div>
+        <button class="btn-primary" onclick="goNext()">Next <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></button>
+      </div>
+    </div>
+
+    <!-- Q10: Open text -->
+    <div id="q-10" class="q-screen">
+      <div class="q-meta">
+        <span class="q-counter">Question <span>10</span> of 10</span>
+      </div>
+      <p class="q-title">What one thing would make you buy this without hesitation?</p>
+      <textarea class="text-input" id="ans-10" placeholder="Tell us what would seal the deal…" maxlength="300" aria-label="Open answer" rows="5"></textarea>
+      <div class="char-counter" id="charCounter">0 / 300</div>
+      <div class="q-nav">
+        <button class="btn-secondary" onclick="goBack()">← Back</button>
+        <div class="spacer"></div>
+        <button class="btn-primary" id="submitBtn" onclick="submitSurvey()">
+          Submit
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- ── THANK YOU ────────────────────────────────────────────────── -->
+    <div id="screen-thanks" class="hidden">
+      <div class="check-wrap">
+        <svg viewBox="0 0 36 36" fill="none">
+          <path d="M8 18 L15 25 L28 11" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <h2>You're a legend.</h2>
+      <p>We'll brew something you'll love.<br/>Thank you for shaping BrewLab. ☕</p>
+    </div>
+
+    <!-- ── ALREADY SUBMITTED ────────────────────────────────────────── -->
+    <div id="screen-already" class="hidden">
+      <div style="font-size:3rem;margin-bottom:16px;">☕</div>
+      <h2>Already submitted!</h2>
+      <p>You've already shared your thoughts with us.<br/>We're brewing something great — stay tuned!</p>
+    </div>
+
+  </div><!-- /.card -->
+</div><!-- /.app -->
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<script>
+  // ─── SUPABASE CONFIG ────────────────────────────────────────────────
+  // Replace with your actual Supabase project credentials
+  const SUPABASE_URL      = 'https://ftuchavsmwhcjkftlaye.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_WRo4lW9ENPyBsQi-rQPACA_SuUOxMc5';
+
+  const { createClient } = supabase;
+  const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  // ─── STATE ──────────────────────────────────────────────────────────
+  const TOTAL = 10;
+  let currentQ = 0; // 0 = landing
+  const answers = {};
+
+  // ─── PARTICLES ──────────────────────────────────────────────────────
+  (function spawnParticles() {
+    const wrap = document.getElementById('particles');
+    for (let i = 0; i < 18; i++) {
+      const p = document.createElement('div');
+      const isBean = Math.random() > .5;
+      p.className = 'particle ' + (isBean ? 'bean' : 'steam');
+      p.style.cssText = `
+        left: ${Math.random() * 100}%;
+        --dur: ${6 + Math.random() * 8}s;
+        --delay: ${Math.random() * 8}s;
+        opacity: 0;
+      `;
+      wrap.appendChild(p);
+    }
+  })();
+
+  // ─── ALREADY SUBMITTED CHECK ─────────────────────────────────────────
+  window.addEventListener('DOMContentLoaded', () => {
+    if (localStorage.getItem('brewlab_submitted')) {
+      showScreen('already');
+    }
+  });
+
+  // ─── PROGRESS ───────────────────────────────────────────────────────
+  function updateProgress(q) {
+    const pct = q === 0 ? 0 : (q / TOTAL) * 100;
+    document.getElementById('progressBar').style.width = pct + '%';
+  }
+
+  // ─── SCREEN MANAGEMENT ──────────────────────────────────────────────
+  function showScreen(name) {
+    const card = document.getElementById('mainCard');
+    // hide all
+    card.querySelectorAll('[id^="screen-"], [id^="q-"]').forEach(el => {
+      el.classList.add('hidden');
+      el.classList.remove('active');
+    });
+    const target = document.getElementById('screen-' + name);
+    if (target) {
+      target.classList.remove('hidden');
+      target.classList.add('active');
+    }
+  }
+
+  // ─── SLIDE TRANSITION ───────────────────────────────────────────────
+  function transitionTo(nextQ, direction = 'forward') {
+    const card = document.getElementById('mainCard');
+    const outClass = direction === 'forward' ? 'slide-out-left'  : 'slide-out-right';
+    const inClass  = direction === 'forward' ? 'slide-in-right'  : 'slide-in-left';
+
+    // current element
+    const curEl = currentQ === 0
+      ? document.getElementById('screen-landing')
+      : document.getElementById('q-' + currentQ);
+
+    if (curEl) {
+      curEl.classList.add(outClass);
+      curEl.addEventListener('animationend', () => {
+        curEl.classList.remove(outClass);
+        curEl.classList.add('hidden');
+        curEl.classList.remove('active');
+        showNext();
+      }, { once: true });
+    } else {
+      showNext();
+    }
+
+    function showNext() {
+      currentQ = nextQ;
+      updateProgress(currentQ);
+      const nextEl = currentQ === 0
+        ? document.getElementById('screen-landing')
+        : document.getElementById('q-' + currentQ);
+      if (nextEl) {
+        nextEl.classList.remove('hidden');
+        nextEl.classList.add('active', inClass);
+        nextEl.addEventListener('animationend', () => {
+          nextEl.classList.remove(inClass);
+        }, { once: true });
+      }
+      // Focus first input
+      setTimeout(() => {
+        const inp = nextEl && nextEl.querySelector('input, textarea');
+        if (inp) inp.focus();
+      }, 420);
+    }
+  }
+
+  // ─── START ──────────────────────────────────────────────────────────
+  document.getElementById('startBtn').addEventListener('click', () => {
+    transitionTo(1, 'forward');
+  });
+
+  // ─── OPTION SELECTION ───────────────────────────────────────────────
+  document.querySelectorAll('.options').forEach(group => {
+    group.addEventListener('click', e => {
+      const opt = e.target.closest('.option');
+      if (!opt) return;
+      handleOptionClick(group, opt);
+    });
+    group.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        const opt = e.target.closest('.option');
+        if (opt) { e.preventDefault(); handleOptionClick(group, opt); }
+      }
+      // Arrow keys
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        const opts = [...group.querySelectorAll('.option')];
+        const idx = opts.indexOf(document.activeElement.closest('.option'));
+        const next = e.key === 'ArrowDown' ? (idx + 1) % opts.length : (idx - 1 + opts.length) % opts.length;
+        opts[next].focus();
+      }
+    });
+  });
+
+  function handleOptionClick(group, opt) {
+    const qNum = group.dataset.q;
+    const type = group.dataset.type;
+    const max  = parseInt(group.dataset.max) || Infinity;
+
+    if (type === 'single') {
+      group.querySelectorAll('.option').forEach(o => o.classList.remove('selected'));
+      opt.classList.add('selected');
+      answers[qNum] = opt.dataset.value;
+    } else {
+      const selected = [...group.querySelectorAll('.option.selected')];
+      if (opt.classList.contains('selected')) {
+        opt.classList.remove('selected');
+      } else {
+        if (selected.length < max) {
+          opt.classList.add('selected');
+        } else {
+          showToast('You can only select ' + max + ' options.', false);
+          return;
+        }
+      }
+      answers[qNum] = [...group.querySelectorAll('.option.selected')].map(o => o.dataset.value);
+      // Update counter for Q4
+      if (qNum === '4') {
+        const cnt = document.getElementById('q4-counter');
+        if (cnt) cnt.textContent = answers['4'].length + '/2 selected';
+      }
+    }
+  }
+
+  // ─── CHAR COUNTER ───────────────────────────────────────────────────
+  const ans10 = document.getElementById('ans-10');
+  const charCounter = document.getElementById('charCounter');
+  if (ans10) {
+    ans10.addEventListener('input', () => {
+      const len = ans10.value.length;
+      charCounter.textContent = len + ' / 300';
+      charCounter.classList.toggle('warn', len >= 270);
+    });
+  }
+
+  // ─── VALIDATION ─────────────────────────────────────────────────────
+  function validateCurrent() {
+    if (currentQ === 1) {
+      const val = document.getElementById('ans-1').value.trim();
+      if (!val) { showToast('Please enter your name.'); return false; }
+      answers['1'] = val;
+      return true;
+    }
+    if (currentQ === 4) {
+      const sel = answers['4'];
+      if (!sel || sel.length !== 2) { showToast('Please pick exactly 2 options.'); return false; }
+      return true;
+    }
+    if (currentQ === 5) {
+      const sel = answers['5'];
+      if (!sel || sel.length === 0) { showToast('Please select at least one option.'); return false; }
+      return true;
+    }
+    if ([2,3,6,7,8,9].includes(currentQ)) {
+      if (!answers[String(currentQ)]) { showToast('Please select an option.'); return false; }
+      return true;
+    }
+    if (currentQ === 10) {
+      answers['10'] = document.getElementById('ans-10').value.trim();
+      return true;
+    }
+    return true;
+  }
+
+  // ─── NAVIGATION ─────────────────────────────────────────────────────
+  function goNext() {
+    if (!validateCurrent()) return;
+    if (currentQ < TOTAL) transitionTo(currentQ + 1, 'forward');
+  }
+
+  function goBack() {
+    if (currentQ > 1) transitionTo(currentQ - 1, 'backward');
+    else transitionTo(0, 'backward');
+  }
+
+  // Keyboard: Enter to proceed
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA' && currentQ > 0 && currentQ < TOTAL) {
+      goNext();
+    }
+  });
+
+  // ─── SUBMIT ─────────────────────────────────────────────────────────
+  async function submitSurvey() {
+    if (!validateCurrent()) return;
+
+    const btn = document.getElementById('submitBtn');
+    btn.disabled = true;
+    btn.textContent = 'Submitting…';
+
+    const payload = {
+      name: answers['1'] || 'Anonymous',
+      answers: {
+        q1_name:          answers['1'] || '',
+        q2_frequency:     answers['2'] || '',
+        q3_protein:       answers['3'] || '',
+        q4_matters:       answers['4'] || [],
+        q5_issues:        answers['5'] || [],
+        q6_timing:        answers['6'] || '',
+        q7_price:         answers['7'] || '',
+        q8_student_made:  answers['8'] || '',
+        q9_flavour:       answers['9'] || '',
+        q10_open:         answers['10'] || '',
+      }
+    };
+
+    try {
+      const { error } = await db.from('responses').insert([payload]);
+      if (error) throw error;
+
+      localStorage.setItem('brewlab_submitted', '1');
+      showThanks();
+    } catch (err) {
+      console.error(err);
+      showToast('Could not save your response. Please check your connection.', true);
+      btn.disabled = false;
+      btn.innerHTML = 'Submit <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>';
+    }
+  }
+
+  // ─── THANK YOU ──────────────────────────────────────────────────────
+  function showThanks() {
+    const card = document.getElementById('mainCard');
+    const curEl = document.getElementById('q-10');
+    if (curEl) {
+      curEl.classList.add('slide-out-left');
+      curEl.addEventListener('animationend', () => {
+        curEl.classList.add('hidden');
+        const thanks = document.getElementById('screen-thanks');
+        thanks.classList.remove('hidden');
+        thanks.classList.add('slide-in-right');
+        thanks.addEventListener('animationend', () => thanks.classList.remove('slide-in-right'), { once: true });
+        launchConfetti();
+      }, { once: true });
+    }
+    updateProgress(TOTAL);
+  }
+
+  // ─── CONFETTI ───────────────────────────────────────────────────────
+  function launchConfetti() {
+    const canvas = document.getElementById('confetti-canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    const colors = ['#c9a96e','#5c3a1e','#e0c48a','#3b2314','#faf8f5','#e8ddd0'];
+    const pieces = Array.from({ length: 140 }, () => ({
+      x: Math.random() * canvas.width,
+      y: -20 - Math.random() * 200,
+      w: 6 + Math.random() * 8,
+      h: 8 + Math.random() * 6,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      rot: Math.random() * Math.PI * 2,
+      vx: (Math.random() - .5) * 4,
+      vy: 2 + Math.random() * 4,
+      vr: (Math.random() - .5) * .15,
+      alpha: 1
+    }));
+
+    let frame;
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      let alive = false;
+      pieces.forEach(p => {
+        p.x += p.vx; p.y += p.vy; p.rot += p.vr;
+        if (p.y > canvas.height * .7) p.alpha -= .018;
+        if (p.alpha > 0) { alive = true; }
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, p.alpha);
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rot);
+        ctx.fillStyle = p.color;
+        ctx.fillRect(-p.w/2, -p.h/2, p.w, p.h);
+        ctx.restore();
+      });
+      if (alive) frame = requestAnimationFrame(draw);
+      else ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+    draw();
+  }
+
+  // ─── TOAST ──────────────────────────────────────────────────────────
+  function showToast(msg, isError = false) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast' + (isError ? ' error' : '');
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 3200);
+  }
+</script>
+</body>
+</html>
