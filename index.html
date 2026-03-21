@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>BrewLab — Shape What We Brew</title>
+  <title>Cold Coffee — Shape What We Brew</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
@@ -156,24 +156,30 @@
     }
     .time-badge svg { width: 14px; height: 14px; }
 
-    /* ─── COFFEE CUP SVG ─────────────────────────────────────────────── */
+    /* ─── COLD COFFEE CUP SVG ────────────────────────────────────────── */
     .cup-wrap {
       margin: 0 auto 32px;
-      width: 100px; height: 110px;
+      width: 100px; height: 120px;
       position: relative;
     }
     .cup-svg { width: 100%; height: 100%; }
-    .steam-line {
-      stroke-dasharray: 20;
-      stroke-dashoffset: 20;
-      animation: steamAnim 2s ease-in-out infinite;
+    .condensation {
+      animation: drip var(--dur, 3s) var(--delay, 0s) ease-in infinite;
+      opacity: 0;
     }
-    .steam-line:nth-child(2) { animation-delay: .4s; }
-    .steam-line:nth-child(3) { animation-delay: .8s; }
-    @keyframes steamAnim {
-      0%   { stroke-dashoffset: 20; opacity: 0; }
-      30%  { opacity: 1; }
-      100% { stroke-dashoffset: -20; opacity: 0; }
+    @keyframes drip {
+      0%   { transform: translateY(0); opacity: 0; }
+      10%  { opacity: .7; }
+      80%  { opacity: .5; }
+      100% { transform: translateY(14px); opacity: 0; }
+    }
+    .ice-float {
+      animation: iceFloat 3s ease-in-out infinite alternate;
+    }
+    .ice-float:nth-child(2) { animation-delay: .5s; }
+    @keyframes iceFloat {
+      0%   { transform: translateY(0) rotate(0deg); }
+      100% { transform: translateY(-2px) rotate(3deg); }
     }
 
     /* ─── BUTTONS ────────────────────────────────────────────────────── */
@@ -408,24 +414,29 @@
 
     <!-- ── LANDING ─────────────────────────────────────────────────── -->
     <div id="screen-landing" class="landing">
-      <div class="brand-badge"><span class="dot"></span> BrewLab Survey</div>
+      <div class="brand-badge"><span class="dot"></span> Cold Coffee Survey</div>
 
       <div class="cup-wrap">
-        <svg class="cup-svg" viewBox="0 0 100 110" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <!-- Steam -->
-          <path class="steam-line" d="M38 28 Q34 20 38 12" stroke="#c9a96e" stroke-width="2.5" stroke-linecap="round" fill="none"/>
-          <path class="steam-line" d="M50 24 Q46 16 50 8"  stroke="#c9a96e" stroke-width="2.5" stroke-linecap="round" fill="none"/>
-          <path class="steam-line" d="M62 28 Q58 20 62 12" stroke="#c9a96e" stroke-width="2.5" stroke-linecap="round" fill="none"/>
-          <!-- Cup body -->
-          <path d="M18 38 L26 90 Q26 94 30 94 L70 94 Q74 94 74 90 L82 38 Z" fill="#5c3a1e"/>
-          <!-- Rim -->
-          <rect x="14" y="34" width="72" height="8" rx="4" fill="#3b2314"/>
-          <!-- Handle -->
-          <path d="M74 52 Q92 52 92 66 Q92 80 74 80" stroke="#3b2314" stroke-width="5" fill="none" stroke-linecap="round"/>
-          <!-- Liquid -->
-          <path d="M22 46 L26 90 Q26 94 30 94 L70 94 Q74 94 74 90 L78 46 Z" fill="#c9a96e" opacity=".35"/>
+        <svg class="cup-svg" viewBox="0 0 100 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- Condensation drops -->
+          <circle class="condensation" cx="28" cy="42" r="2" fill="#a8d8ea" style="--dur:2.8s;--delay:0s"/>
+          <circle class="condensation" cx="75" cy="55" r="1.8" fill="#a8d8ea" style="--dur:3.2s;--delay:.6s"/>
+          <circle class="condensation" cx="24" cy="65" r="1.5" fill="#a8d8ea" style="--dur:2.5s;--delay:1.2s"/>
+          <!-- Tall glass body -->
+          <path d="M25 18 L30 100 Q30 106 36 106 L64 106 Q70 106 70 100 L75 18 Z" fill="rgba(200,220,235,.35)" stroke="#c9a96e" stroke-width="1.5"/>
+          <!-- Glass rim -->
+          <rect x="22" y="14" width="56" height="7" rx="3.5" fill="#3b2314"/>
+          <!-- Liquid (iced coffee) -->
+          <path d="M29 38 L30 100 Q30 106 36 106 L64 106 Q70 106 70 100 L71 38 Z" fill="#c9a96e" opacity=".5"/>
+          <!-- Ice cubes -->
+          <rect class="ice-float" x="38" y="42" width="14" height="12" rx="3" fill="rgba(200,230,255,.7)" stroke="rgba(160,200,230,.6)" stroke-width="1"/>
+          <rect class="ice-float" x="54" y="52" width="12" height="10" rx="3" fill="rgba(200,230,255,.6)" stroke="rgba(160,200,230,.5)" stroke-width="1"/>
+          <rect class="ice-float" x="32" y="60" width="11" height="10" rx="3" fill="rgba(200,230,255,.55)" stroke="rgba(160,200,230,.5)" stroke-width="1"/>
+          <!-- Straw -->
+          <line x1="58" y1="4" x2="62" y2="75" stroke="#e05050" stroke-width="3" stroke-linecap="round"/>
+          <line x1="58" y1="4" x2="55" y2="10" stroke="#e05050" stroke-width="3" stroke-linecap="round"/>
           <!-- Logo text -->
-          <text x="50" y="72" text-anchor="middle" font-family="serif" font-size="11" font-weight="bold" fill="#faf8f5" opacity=".9">BL</text>
+          <text x="50" y="90" text-anchor="middle" font-family="serif" font-size="11" font-weight="bold" fill="#3b2314" opacity=".7">CC</text>
         </svg>
       </div>
 
@@ -708,7 +719,7 @@
         </svg>
       </div>
       <h2>You're a legend.</h2>
-      <p>We'll brew something you'll love.<br/>Thank you for shaping BrewLab. ☕</p>
+      <p>We'll brew something you'll love.<br/>Thank you for shaping Cold Coffee. 🧊☕</p>
     </div>
 
     <!-- ── ALREADY SUBMITTED ────────────────────────────────────────── -->

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>BrewLab — Admin Dashboard</title>
+  <title>Cold Coffee — Admin Dashboard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
@@ -397,7 +397,7 @@
 <div id="auth-overlay">
   <div class="auth-card">
     <div class="auth-logo">☕</div>
-    <h2>BrewLab Admin</h2>
+    <h2>Cold Coffee Admin</h2>
     <p>Enter the dashboard password to continue.</p>
     <input type="password" class="auth-input" id="auth-input" placeholder="Password" autocomplete="current-password" />
     <button class="auth-btn" id="auth-btn">Unlock Dashboard →</button>
@@ -414,7 +414,7 @@
   <!-- Sidebar -->
   <aside class="sidebar">
     <div class="sidebar-logo">
-      <div class="brand">Brew<em>Lab</em></div>
+      <div class="brand">Cold<em>Coffee</em></div>
       <div class="sub">Admin Dashboard</div>
     </div>
     <nav class="sidebar-nav">
@@ -441,7 +441,7 @@
         Download CSV
       </button>
     </nav>
-    <div class="sidebar-footer">BrewLab &copy; 2025</div>
+    <div class="sidebar-footer">Cold Coffee &copy; 2025</div>
   </aside>
 
   <!-- Main -->
@@ -918,7 +918,7 @@
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
     a.href = url;
-    a.download = 'brewlab_responses_' + new Date().toISOString().slice(0,10) + '.csv';
+    a.download = 'coldcoffee_responses_' + new Date().toISOString().slice(0,10) + '.csv';
     a.click();
     URL.revokeObjectURL(url);
     showToast('CSV downloaded successfully!', 'success');
