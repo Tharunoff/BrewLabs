@@ -7,7 +7,6 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 
   <style>
@@ -559,20 +558,14 @@
 
 <!-- ════════════════════════════════════════════════════════════════════ -->
 <script>
-  // ─── SUPABASE CONFIG ────────────────────────────────────────────────
-  // Replace with your actual Supabase project credentials
-  const SUPABASE_URL      = 'https://ftuchavsmwhcjkftlaye.supabase.co';
-  const SUPABASE_ANON_KEY = 'sb_publishable_WRo4lW9ENPyBsQi-rQPACA_SuUOxMc5';
-
-  const { createClient } = supabase;
-  const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
+  // ─── HTTP CONFIG ────────────────────────────────────────────────────
   // ─── HASHED PASSWORD (SHA-256 of the real password) ─────────────────
   // To change the password, run in browser console:
   //   crypto.subtle.digest('SHA-256', new TextEncoder().encode('YOUR_NEW_PASSWORD'))
   //     .then(h => console.log([...new Uint8Array(h)].map(b=>b.toString(16).padStart(2,'0')).join('')))
   // Then replace the hash below.
   const ADMIN_HASH = '96022369ef87b46f68a35c611f3f933e43db467ec57128ba68bc90e25228e89a'; // SHA-256 of 'brewlab2025'
+  let currentAuthHash = null;
   let authAttempts = 0;
   const MAX_ATTEMPTS = 5;
   let lockoutUntil = 0;
@@ -600,6 +593,7 @@
 
     const hash = await hashPassword(authInput.value);
     if (hash === ADMIN_HASH) {
+      currentAuthHash = hash;
       authAttempts = 0;
       authOverlay.style.opacity = '0';
       authOverlay.style.transition = 'opacity .4s';
@@ -650,17 +644,21 @@
   let trendChartInst = null;
 
   async function loadData() {
+    if (!currentAuthHash) return;
     try {
-      const { data, error } = await db
-        .from('responses')
-        .select('*')
-        .order('submitted_at', { ascending: true });
-      if (error) throw error;
-      allData = data || [];
+      const res = await fetch('/api/responses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hash: currentAuthHash })
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Failed to fetch data');
+      
+      allData = json.data || [];
       renderAll();
     } catch (err) {
       console.error(err);
-      showToast('Could not load data. Check Supabase credentials.', 'error');
+      showToast('Could not load data. Check backend or credentials.', 'error');
     }
   }
 
@@ -825,7 +823,7 @@
           <div class="chart-title">${label}</div>
           <div class="chart-sub">${flat.length} response${flat.length !== 1 ? 's' : ''}</div>
         </div>
-        ${topEntry ? `<div class="top-badge">🏆 ${topEntry[0].replace(/^[^\w₹]*/,'').slice(0,22)}</div>` : ''}
+        ${topEntry ? `<div class="top-badge">🏆 ${escHtml(topEntry[0].replace(/^[^\w₹]*/,'').slice(0,22))}</div>` : ''}
       </div>
       <div class="bar-list" id="bars-${key}"></div>
     `;
@@ -841,7 +839,7 @@
         item.className = 'bar-item' + (isTop ? ' top-pick' : '');
         item.innerHTML = `
           <div class="bar-meta">
-            <span class="bar-label">${val}</span>
+            <span class="bar-label">${escHtml(val)}</span>
             <span class="bar-pct">${pct}% <span style="color:var(--text-muted);font-weight:400">(${count})</span></span>
           </div>
           <div class="bar-track">
