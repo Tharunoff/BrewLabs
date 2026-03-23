@@ -7,6 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <style>
     /* ─── DESIGN TOKENS ─────────────────────────────────────────────── */
@@ -733,7 +734,14 @@
 
 <!-- ════════════════════════════════════════════════════════════════════ -->
 <script>
-  // ─── HTTP CONFIG ────────────────────────────────────────────────────
+  // ─── SUPABASE CONFIG ────────────────────────────────────────────────
+  // Replace with your actual Supabase project credentials
+  const SUPABASE_URL      = 'https://ftuchavsmwhcjkftlaye.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_WRo4lW9ENPyBsQi-rQPACA_SuUOxMc5';
+
+  const { createClient } = supabase;
+  const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
   // ─── STATE ──────────────────────────────────────────────────────────
   const TOTAL = 10;
   let currentQ = 0; // 0 = landing
@@ -969,14 +977,8 @@
     };
 
     try {
-      const response = await fetch('/api/submit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || 'Server error');
+      const { error } = await db.from('responses').insert([payload]);
+      if (error) throw error;
 
       localStorage.setItem('brewlab_submitted', '1');
       showThanks();
